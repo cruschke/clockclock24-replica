@@ -52,9 +52,14 @@ void set_direction(int value)
 
 void send_half_digit(int index, t_half_digit half_digit)
 {
-  Wire.beginTransmission(index + 1);
+  uint8_t address = index + 1;
+  Wire.beginTransmission(address);
   I2C_writeAnything(half_digit);
-  Wire.endTransmission();
+  uint8_t error = Wire.endTransmission();
+  if (error != 0)
+  {
+    Serial.printf("I2C Error on address %d: code %d\n", address, error);
+  }
 }
 
 // 0 <= index < 4
