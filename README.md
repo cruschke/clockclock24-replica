@@ -12,6 +12,17 @@ Clockclock is a kinetic sculpture design by Humans Since 1982, consisting of 24 
 
 ---
 
+### ⚠️ Fork Changes (Bug Fixes)
+This fork implements critical stability patches to resolve issues where the clock hands would freeze permanently and the web UI would become inaccessible.
+
+The following bugs from the original repository have been fixed:
+1. **Slave Stepper Deadlock:** Removed blocking `runToPosition()` calls in the slave firmware that caused Core 1 to hang permanently if a motor stalled mid-motion.
+2. **NTP Sync Web Freeze:** Rewrote the ESP8266 NTP synchronization to be fully non-blocking. The original firmware blocked the main loop (and web server) for seconds at a time during DNS lookups and UDP spin-waits every 30 minutes.
+3. **Master Counter Overflow:** Added an overflow guard to the `_counter` variable. Originally, when this wrapped to `0` after long uptime, all slaves would permanently ignore new commands.
+4. **I2C Bus Lock Protection:** Added a clock stretch limit to the ESP8266 `Wire` library to prevent a crashed slave board from holding the SDA line low and locking the master indefinitely.
+
+---
+
 ### Table of Contents: 
 1. [Hardware](#hardware)
     1. [Motor](#motor)
