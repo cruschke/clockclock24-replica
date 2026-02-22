@@ -27,7 +27,6 @@ byte packet_buffer[NTP_PACKET_SIZE]; // buffer to hold incoming & outgoing packe
 #define NTP_RESPONSE_TIMEOUT_MS 2000                  // give up after 2s
 
 static IPAddress _ntp_server_ip;
-static bool      _ntp_ip_resolved  = false;
 static uint8_t   _ntp_state        = 0;  // 0 = IDLE, 1 = WAITING_RESPONSE
 static uint32_t  _ntp_send_time    = 0;
 static uint32_t  _ntp_last_sync_ms = 0;
@@ -46,18 +45,18 @@ inline time_t get_NTP_time() { return 0; }
 void begin_NTP()
 {
   Udp.begin(local_port);
-  // Resolve NTP IP once at startup.
-  // This single blocking DNS call is acceptable during setup().
+  // Resolve NTP IP once at startup (blocking is fine inside setup()).
+  // On every subsequent sync tick_NTP() re-resolves — pool.ntp.org is a
+  // round-robin pool and expects re-resolution per sync to spread load.
   Serial.println("Resolving NTP server...");
   if (WiFi.hostByName(ntp_server_name, _ntp_server_ip))
   {
-    _ntp_ip_resolved = true;
     Serial.print("NTP server IP: ");
     Serial.println(_ntp_server_ip);
   }
   else
   {
-    Serial.println("NTP DNS lookup failed at startup, will retry later.");
+    Serial.println("NTP DNS lookup failed at startup.");
   }
 }
 
@@ -71,19 +70,15 @@ void tick_NTP()
                     (now_ms - _ntp_last_sync_ms >= NTP_SYNC_INTERVAL_MS);
     if (!sync_due) return;
 
-    // Re-resolve IP if it was never resolved or we want to refresh it
-    if (!_ntp_ip_resolved)
+    // Re-resolve DNS on every sync. pool.ntp.org is a round-robin pool;
+    // re-resolving distributes each request across different servers.
+    // WiFi.hostByName() on a healthy LAN is typically < 100ms — acceptable.
+    // (The old 1500ms spin-wait for the UDP reply was the real blocker.)
+    if (!WiFi.hostByName(ntp_server_name, _ntp_server_ip))
     {
-      // Non-blocking check: try again but don't block more than hostByName's
-      // internal timeout (~5s). Only do this if we have no IP at all.
-      if (WiFi.hostByName(ntp_server_name, _ntp_server_ip))
-        _ntp_ip_resolved = true;
-      else
-      {
-        Serial.println("NTP DNS retry failed, skipping sync.");
-        _ntp_last_sync_ms = now_ms; // back off for a full interval
-        return;
-      }
+      Serial.println("NTP DNS lookup failed, skipping sync.");
+      _ntp_last_sync_ms = now_ms; // back off for a full interval
+      return;
     }
 
     // Discard any stale packets
@@ -113,11 +108,9 @@ void tick_NTP()
     }
     else if (now_ms - _ntp_send_time > NTP_RESPONSE_TIMEOUT_MS)
     {
-      // No response within timeout — flag IP as potentially stale and back off
       Serial.println("NTP response timeout.");
-      _ntp_ip_resolved = false; // force DNS re-resolve next time
       _ntp_last_sync_ms = now_ms;
-      _ntp_state = 0; // back to IDLE
+      _ntp_state = 0; // back to IDLE — will re-resolve DNS on next attempt
     }
   }
 }
