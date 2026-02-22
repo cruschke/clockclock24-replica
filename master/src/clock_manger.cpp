@@ -4,8 +4,16 @@ int _speed = 200;
 int _acceleration = 100;
 int _direction = MIN_DISTANCE;
 
-// Changes when the clock state changes
+// Changes when the clock state changes.
+// IMPORTANT: must never be 0 — slaves initialize change_counter to 0,
+// so if master sends 0, slaves ignore all future commands permanently.
 uint32_t _counter = 1;
+
+static void increment_counter()
+{
+  _counter++;
+  if (_counter == 0) _counter = 1; // skip 0 on overflow
+}
 
 const t_digit _digits[10] = {digit_0, digit_1, digit_2, digit_3, digit_4, digit_5, digit_6, digit_7, digit_8, digit_9};
 // Last sended clock state
@@ -89,14 +97,14 @@ t_half_digit get_full_half_digit(t_half_digitl lite_digit)
 void set_clock(t_full_clock clock_state)
 {
   send_clock(clock_state);
-  _counter++;
+  increment_counter();
 }
 
 // 0 <= index < 4
 void set_digit(int index, t_digit digit)
 {
   send_digit(index, digit);
-  _counter++;
+  increment_counter();
 }
 
 // 0 <= index < 8
@@ -105,7 +113,7 @@ void set_half_digit(int index, t_half_digitl half)
     t_half_digit hd = get_full_half_digit(half);
     send_half_digit(index, hd);
     _last_state[index] = hd;
-    _counter++;
+    increment_counter();
 }
 
 void set_clock_time(int h, int m)
@@ -139,5 +147,5 @@ void adjust_hands(int clock_index, int h_amount, int m_amount)
   tmp.clocks[clock_index % 3].accel_m = 5000;
   tmp.change_counter[clock_index % 3] = _counter;
   send_half_digit(clock_index/3, tmp);
-  _counter++;
+  increment_counter();
 }

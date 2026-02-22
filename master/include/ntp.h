@@ -7,13 +7,8 @@
 
 // NTP Servers:
 static const char ntp_server_name[] = "pool.ntp.org";
-//static const char ntp_server_name[] = "time.nist.gov";
 
 int _time_zone = 1; // Central European Time
-// const int time_zone = -5;  // Eastern Standard Time (USA)
-// const int time_zone = -4;  // Eastern Daylight Time (USA)
-// const int time_zone = -8;  // Pacific Standard Time (USA)
-// const int time_zone = -7;  // Pacific Daylight Time (USA)
 
 WiFiUDP Udp;
 unsigned int local_port = 8888; // local port to listen for UDP packets
@@ -21,68 +16,132 @@ unsigned int local_port = 8888; // local port to listen for UDP packets
 const int NTP_PACKET_SIZE = 48;     // NTP time is in the first 48 bytes of message
 byte packet_buffer[NTP_PACKET_SIZE]; // buffer to hold incoming & outgoing packets
 
+// --- Non-blocking NTP state machine ---
+// Previously, get_NTP_time() called WiFi.hostByName() (blocking DNS, no timeout)
+// and then spin-waited up to 1500ms for a UDP reply, both inside loop().
+// This froze handle_webclient() for seconds every 30 minutes.
+// The new approach: send the UDP packet and return immediately; check for a
+// reply on subsequent loop() calls via tick_NTP().
+
+#define NTP_SYNC_INTERVAL_MS  (30UL * 60UL * 1000UL) // 30 minutes
+#define NTP_RESPONSE_TIMEOUT_MS 2000                  // give up after 2s
+
+static IPAddress _ntp_server_ip;
+static bool      _ntp_ip_resolved  = false;
+static uint8_t   _ntp_state        = 0;  // 0 = IDLE, 1 = WAITING_RESPONSE
+static uint32_t  _ntp_send_time    = 0;
+static uint32_t  _ntp_last_sync_ms = 0;
+
 void begin_NTP();
-time_t get_NTP_time();
+void tick_NTP();          // call from loop() instead of setSyncProvider
 void send_NTP_packet(IPAddress &address);
+void set_ntp_timezone(int value);
+int  get_ntp_timezone();
+void request_ntp_sync(); // force an immediate re-sync (e.g. on timezone change)
+
+// --- Legacy stub kept so existing callers compile ---
+// No longer registered with setSyncProvider.
+inline time_t get_NTP_time() { return 0; }
 
 void begin_NTP()
 {
   Udp.begin(local_port);
+  // Resolve NTP IP once at startup.
+  // This single blocking DNS call is acceptable during setup().
+  Serial.println("Resolving NTP server...");
+  if (WiFi.hostByName(ntp_server_name, _ntp_server_ip))
+  {
+    _ntp_ip_resolved = true;
+    Serial.print("NTP server IP: ");
+    Serial.println(_ntp_server_ip);
+  }
+  else
+  {
+    Serial.println("NTP DNS lookup failed at startup, will retry later.");
+  }
 }
 
-time_t get_NTP_time()
+void tick_NTP()
 {
-  IPAddress ntp_server_IP; // NTP server's ip address
+  uint32_t now_ms = millis();
 
-  while (Udp.parsePacket() > 0)
-    ; // discard any previously received packets
-  Serial.println("Transmit NTP Request");
-  // get a random server from the pool
-  WiFi.hostByName(ntp_server_name, ntp_server_IP);
-  Serial.print(ntp_server_name);
-  Serial.print(": ");
-  Serial.println(ntp_server_IP);
-  send_NTP_packet(ntp_server_IP);
-  uint32_t begin_wait = millis();
-  while (millis() - begin_wait < 1500)
+  if (_ntp_state == 0) // IDLE
+  {
+    bool sync_due = (_ntp_last_sync_ms == 0) ||
+                    (now_ms - _ntp_last_sync_ms >= NTP_SYNC_INTERVAL_MS);
+    if (!sync_due) return;
+
+    // Re-resolve IP if it was never resolved or we want to refresh it
+    if (!_ntp_ip_resolved)
+    {
+      // Non-blocking check: try again but don't block more than hostByName's
+      // internal timeout (~5s). Only do this if we have no IP at all.
+      if (WiFi.hostByName(ntp_server_name, _ntp_server_ip))
+        _ntp_ip_resolved = true;
+      else
+      {
+        Serial.println("NTP DNS retry failed, skipping sync.");
+        _ntp_last_sync_ms = now_ms; // back off for a full interval
+        return;
+      }
+    }
+
+    // Discard any stale packets
+    while (Udp.parsePacket() > 0);
+
+    send_NTP_packet(_ntp_server_ip);
+    _ntp_send_time = now_ms;
+    _ntp_state = 1; // WAITING_RESPONSE
+    Serial.println("NTP request sent (non-blocking).");
+  }
+  else // WAITING_RESPONSE
   {
     int size = Udp.parsePacket();
     if (size >= NTP_PACKET_SIZE)
     {
-      Serial.println("Receive NTP Response");
-      Udp.read(packet_buffer, NTP_PACKET_SIZE); // read packet into the buffer
+      Udp.read(packet_buffer, NTP_PACKET_SIZE);
       unsigned long secs_since_1900;
-      // convert four bytes starting at location 40 to a long integer
-      secs_since_1900 = (unsigned long)packet_buffer[40] << 24;
+      secs_since_1900  = (unsigned long)packet_buffer[40] << 24;
       secs_since_1900 |= (unsigned long)packet_buffer[41] << 16;
       secs_since_1900 |= (unsigned long)packet_buffer[42] << 8;
       secs_since_1900 |= (unsigned long)packet_buffer[43];
-      return secs_since_1900 - 2208988800UL + _time_zone * SECS_PER_HOUR;
+      time_t unix_time = secs_since_1900 - 2208988800UL + _time_zone * SECS_PER_HOUR;
+      setTime(unix_time);
+      _ntp_last_sync_ms = now_ms;
+      _ntp_state = 0; // back to IDLE
+      Serial.println("NTP sync successful.");
+    }
+    else if (now_ms - _ntp_send_time > NTP_RESPONSE_TIMEOUT_MS)
+    {
+      // No response within timeout — flag IP as potentially stale and back off
+      Serial.println("NTP response timeout.");
+      _ntp_ip_resolved = false; // force DNS re-resolve next time
+      _ntp_last_sync_ms = now_ms;
+      _ntp_state = 0; // back to IDLE
     }
   }
-  Serial.println("No NTP Response :-(");
-  return 0; // return 0 if unable to get the time
+}
+
+void request_ntp_sync()
+{
+  // Force next tick_NTP() call to send a new request
+  _ntp_last_sync_ms = 0;
+  _ntp_state = 0;
 }
 
 // send an NTP request to the time server at the given address
 void send_NTP_packet(IPAddress &address)
 {
-  // set all bytes in the buffer to 0
   memset(packet_buffer, 0, NTP_PACKET_SIZE);
-  // Initialize values needed to form NTP request
-  // (see URL above for details on the packets)
-  packet_buffer[0] = 0b11100011; // LI, Version, Mode
-  packet_buffer[1] = 0;          // Stratum, or type of clock
-  packet_buffer[2] = 6;          // Polling Interval
-  packet_buffer[3] = 0xEC;       // Peer Clock Precision
-  // 8 bytes of zero for Root Delay & Root Dispersion
+  packet_buffer[0]  = 0b11100011; // LI, Version, Mode
+  packet_buffer[1]  = 0;          // Stratum
+  packet_buffer[2]  = 6;          // Polling Interval
+  packet_buffer[3]  = 0xEC;       // Peer Clock Precision
   packet_buffer[12] = 49;
   packet_buffer[13] = 0x4E;
   packet_buffer[14] = 49;
   packet_buffer[15] = 52;
-  // all NTP fields have been given values, now
-  // you can send a packet requesting a timestamp:
-  Udp.beginPacket(address, 123); // NTP requests are to port 123
+  Udp.beginPacket(address, 123);
   Udp.write(packet_buffer, NTP_PACKET_SIZE);
   Udp.endPacket();
 }
@@ -96,4 +155,5 @@ int get_ntp_timezone()
 {
   return _time_zone;
 }
+
 #endif

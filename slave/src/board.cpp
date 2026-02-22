@@ -79,14 +79,16 @@ void set_clock(int index, t_clock state)
 
 void adjust_h_hand(int index, signed char amount)
 {
+  // Non-blocking: board_loop() drives the motor via run() each iteration.
+  // runToPosition() was removed because it blocks Core 1 indefinitely
+  // if the motor stalls, freezing all other motors mid-motion.
   int steps = amount * STEPS / 360;
   _motors[index*2 + 1].move(steps);
-  _motors[index*2 + 1].runToPosition();
 }
 
 void adjust_m_hand(int index, signed char amount)
 {
+  // Non-blocking: same reasoning as adjust_h_hand above.
   int steps = amount * STEPS / 360;
   _motors[index*2].move(-steps);
-  _motors[index*2].runToPosition();
 }

@@ -54,6 +54,9 @@ void setup() {
   begin_config();
 
   Wire.begin();
+  // Bug #3 fix: limit I2C clock stretching so a crashed/glitching slave
+  // cannot hold SDA low and lock up Wire.endTransmission() indefinitely.
+  Wire.setClockStretchLimit(1500);
   pinMode(LED_BUILTIN, OUTPUT);
 
   if(get_connection_mode() == HOTSPOT)
@@ -66,11 +69,11 @@ void setup() {
 
   if(get_connection_mode() == EXT_CONN)
   {
-    // Initialize NTP
+    // Bug #4 fix: begin_NTP() resolves the NTP IP once (blocking, but only
+    // at startup). The actual sync is now done non-blocking via tick_NTP()
+    // called from loop(), replacing the old blocking setSyncProvider approach.
     begin_NTP();
-    setSyncProvider(get_NTP_time);
-    // Sync every 30 minutes
-    setSyncInterval(60 * 30);
+    set_ntp_timezone(get_timezone());
   }
 
   // Starts web server
@@ -92,9 +95,17 @@ void loop() {
 
   if(get_connection_mode() == EXT_CONN && get_timezone() != get_ntp_timezone())
   {
+    // Timezone changed: update the offset and trigger an immediate re-sync.
+    // Previously this called setSyncProvider() again (blocking); now we just
+    // request a new sync on the next tick_NTP() call.
     set_ntp_timezone(get_timezone());
-    setSyncProvider(get_NTP_time);
+    request_ntp_sync();
   }
+
+  // Non-blocking NTP tick: sends packet and reads reply across separate loop()
+  // iterations so handle_webclient() is never starved.
+  if(get_connection_mode() == EXT_CONN)
+    tick_NTP();
 
   get_clock_mode() != OFF ? set_time() : stop();
 
@@ -177,8 +188,9 @@ void stop()
 
 void _delay(int value)
 {
-  for (int i = 0; i <value/100; i++)
+  for (int i = 0; i < value/100; i++)
   {
+    ESP.wdtFeed(); // prevent watchdog reboot during long animations
     update_MDNS();
     handle_webclient();
     delay(value/100);
