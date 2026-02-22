@@ -58,7 +58,24 @@ void send_half_digit(int index, t_half_digit half_digit)
   uint8_t error = Wire.endTransmission();
   if (error != 0)
   {
-    Serial.printf("I2C Error on address %d: code %d\n", address, error);
+    const char* roles[] = {
+      "Hours Tens - Left", "Hours Tens - Right",
+      "Hours Units - Left", "Hours Units - Right",
+      "Minutes Tens - Left", "Minutes Tens - Right",
+      "Minutes Units - Left", "Minutes Units - Right"
+    };
+    const char* role = (index >= 0 && index <= 7) ? roles[index] : "Unknown position";
+    
+    const char* err_str = "Unknown error";
+    switch (error) {
+      case 1: err_str = "Data too long"; break;
+      case 2: err_str = "Board missing/unresponsive (NACK on address)"; break;
+      case 3: err_str = "Data rejection (NACK on data)"; break;
+      case 4: err_str = "Other hardware error"; break;
+      case 5: err_str = "Timeout (I2C bus locked up)"; break;
+    }
+    
+    Serial.printf("\n[!] I2C ERROR -> Board %d (%s) failed: %s (code %d)\n", address, role, err_str, error);
   }
 }
 
