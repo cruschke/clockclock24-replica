@@ -168,7 +168,8 @@ void set_waves()
   for (int i = 0; i <8; i++)
   {
     set_half_digit(i, clock.digit[i/2].halfs[i%2]);
-    delay(400);
+    // Fix: use our non-blocking _delay instead of bare delay
+    _delay(400);
   }
 }
 
@@ -186,13 +187,16 @@ void stop()
   }
 }
 
-void _delay(int value)
+void _delay(int value_ms)
 {
-  for (int i = 0; i < value/100; i++)
+  int iterations = value_ms / 10;
+  for (int i = 0; i < iterations; i++)
   {
     ESP.wdtFeed(); // prevent watchdog reboot during long animations
     update_MDNS();
     handle_webclient();
-    delay(value/100);
+    delay(10);     // 10ms chunk keeps the web UI highly responsive
   }
+  // catch any remainder
+  if (value_ms % 10 > 0) delay(value_ms % 10);
 }
