@@ -239,6 +239,16 @@
       align-items: center;
       padding: 16px;
     }
+
+    #timezone-box {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    #timezone-status {
+      min-height: 20px;
+    }
   </style>
 </head>
 <body id="body">
@@ -258,6 +268,25 @@
 <div id="hours"></div>
 <div class="spacer"></div>
 <div class="title">
+  Timezone
+</div>
+<div id="timezone-box">
+  <select id="timezone-id" class="input-text" style="width:280px">
+    <option value="">Select timezone...</option>
+    <option value="Europe/Berlin">Europe/Berlin</option>
+    <option value="Europe/London">Europe/London</option>
+    <option value="America/New_York">America/New_York</option>
+    <option value="America/Los_Angeles">America/Los_Angeles</option>
+    <option value="Asia/Tokyo">Asia/Tokyo</option>
+    <option value="Australia/Sydney">Australia/Sydney</option>
+    <option value="UTC">UTC</option>
+    <option value="Africa/Lagos">Africa/Lagos</option>
+  </select>
+  <button class="btn" style="width:100px" onclick="saveTimezone()">SAVE TZ</button>
+</div>
+<div id="timezone-status" class="text"><small>Timezone not configured</small></div>
+<div class="spacer"></div>
+<div class="title">
   Wireless Connection
 </div>
 <div id="wifi">
@@ -267,7 +296,7 @@
 <form id="external" class="hidden" onsubmit="return false;">
   <input type="text" id="ssid" class="input-text" placeholder="SSID" minlength="1" required/>
   <input type="password" id="password" class="input-text" placeholder="PASSWORD" minlength="1" required/>
-  <button type="submit" class="btn" style="width:100px" onclick="saveConnection()">SAVE</button>
+  <button type="button" class="btn" style="width:100px" onclick="saveConnection()">SAVE</button>
 </form>
 <div class="spacer"></div>
 <div class="spacer"></div>
@@ -297,6 +326,10 @@
   // Wifi credentials
   let ssid = ""
   let password = ""
+  let timezoneId = ""
+  let timezoneConfigured = false
+  let timeAuthority = "browser_manual_fallback"
+  let deviceTimeOffset = 0  // offset in minutes: device_time - browser_time
 
   /* DOM making */
 
@@ -441,6 +474,10 @@
   genClocks()
   genModes()
   genDays()
+  const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const tzSelect = document.getElementById("timezone-id")
+  if (tzSelect && [...tzSelect.options].find(o => o.value === browserTimezone))
+    tzSelect.value = browserTimezone
 
   /* Server calls */
 
@@ -455,6 +492,10 @@
     formData.append("M", (d.getMonth()+1).toString())
     formData.append("Y", d.getFullYear().toString())
     formData.append("timezone", (d.getTimezoneOffset() / -60).toString())
+    const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone
+    const selectedTz = document.getElementById("timezone-id")?.value || browserTz
+    if (selectedTz)
+      formData.append("timezone_id", selectedTz)
     fetch("/time", {
       method: "post",
       body: formData,
@@ -474,6 +515,55 @@
     selectConnection(res.wireless_mode)
     document.getElementById("ssid").value = ssid = res.ssid
     document.getElementById("password").value = password = res.password
+    timezoneId = res.timezone_id || ""
+    timezoneConfigured = !!res.timezone_configured
+    timeAuthority = res.time_authority || "browser_manual_fallback"
+    
+    // If timezone is configured, fetch device time to calculate offset
+    if (timezoneConfigured) {
+      try {
+        const nowResp = await fetch("/now")
+        const nowData = await nowResp.json()
+        const browserNow = new Date()
+        const deviceMinutes = nowData.h * 60 + nowData.m
+        const browserMinutes = browserNow.getHours() * 60 + browserNow.getMinutes()
+        deviceTimeOffset = deviceMinutes - browserMinutes
+        // Handle day wrap-around
+        if (deviceTimeOffset > 720) deviceTimeOffset -= 1440
+        if (deviceTimeOffset < -720) deviceTimeOffset += 1440
+        console.log("Device time offset: " + deviceTimeOffset + " minutes")
+      } catch (err) {
+        console.error("Failed to fetch device time:", err)
+        deviceTimeOffset = 0
+      }
+    } else {
+      deviceTimeOffset = 0
+    }
+    
+    const timezoneInput = document.getElementById("timezone-id")
+    if (timezoneInput) {
+      if (timezoneId && [...timezoneInput.options].find(o => o.value === timezoneId))
+        timezoneInput.value = timezoneId
+      else if (!timezoneId)
+        timezoneInput.value = ""
+    }
+    const status = document.getElementById("timezone-status")
+    if (status) {
+      status.innerHTML = timezoneConfigured
+        ? `<small>Timezone: <b>${timezoneId}</b> | Authority: <b>${timeAuthority}</b></small>`
+        : `<small>Timezone not configured. Select profile to enable DST-correct local time.</small>`
+    }
+  }
+
+  async function saveTimezone() {
+    const tz = document.getElementById("timezone-id").value
+    const f = new FormData()
+    f.append("timezone_id", tz)
+    await fetch("/time", {
+      method: "post",
+      body: f,
+    })
+    await updateConfig()
   }
 
   // Sends an adjust hand request
@@ -524,19 +614,29 @@
     }, 1500)
   }
 
+  let connectionSavePending = false
+
   // Sends a request to save the connection type
   async function saveConnection() {
+    if (connectionSavePending)
+      return
+
+    connectionSavePending = true
     ssid = document.getElementById("ssid").value;
     password = document.getElementById("password").value;
     let f = new FormData()
     f.append("mode", selectedConnection.toString())
     f.append("ssid", ssid)
     f.append("password", password)
-    await fetch("/connection", {
-      method: "post",
-      body: f,
-    })
-    setTimeout(() => location.reload(), 2000)
+    try {
+      await fetch("/connection", {
+        method: "post",
+        body: f,
+      })
+      setTimeout(() => location.reload(), 2000)
+    } finally {
+      setTimeout(() => { connectionSavePending = false }, 2500)
+    }
   }
 
   // On the first run, updates the datetime on the clock and
@@ -788,7 +888,13 @@
   
   // Sets current time on clock
   function setTime() {
-    const d = new Date();
+    let d = new Date();
+    
+    // Apply device timezone offset if configured
+    if (timezoneConfigured && deviceTimeOffset !== 0) {
+      d = new Date(d.getTime() + deviceTimeOffset * 60000)
+    }
+    
     const time = d.toTimeString().substring(0,5).replace(':', '')
     const day = (d.getDay() + 6) % 7
     const hours = d.getHours()

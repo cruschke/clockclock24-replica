@@ -44,6 +44,11 @@ void handle_get();
 void handle_get_config();
 
 /**
+ * Handles GET /now (returns current device time as JSON)
+*/
+void handle_get_now();
+
+/**
  * Handles POST /time
 */
 void handle_post_time();
