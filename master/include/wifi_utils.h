@@ -18,6 +18,9 @@ bool wifi_connect(const char *ssid, const char *password, const char *mdns)
 {
   Serial.printf("\nConnecting to %s\n", ssid);
 
+  WiFi.persistent(false);  // Don't save config to flash; avoids stale AP-mode state on reboot
+  WiFi.disconnect(true);   // Clear any previous association before switching mode
+  delay(100);
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
 

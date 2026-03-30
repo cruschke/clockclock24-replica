@@ -271,7 +271,7 @@ int get_timezone_offset_and_transition(
   
   // Apply DST logic if this timezone observes DST
   if (profile->has_dst) {
-    struct tm *tm_info = gmtime(&epoch_utc);
+    const struct tm *tm_info = gmtime(&epoch_utc);
     if (tm_info) {
       int year = tm_info->tm_year + 1900;
       DstRuleFamily family = get_dst_rule_family(profile->iana_id);

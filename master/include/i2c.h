@@ -9,13 +9,13 @@
 
 template <typename T> unsigned int I2C_writeAnything (const T& value)
 {
-  Wire.write((byte *) &value, sizeof (value));
+  Wire.write(reinterpret_cast<const byte *>(&value), sizeof (value));
   return sizeof (value);
 }  // end of I2C_writeAnything
 
 template <typename T> unsigned int I2C_readAnything(T& value)
 {
-  byte * p = (byte*) &value;
+  byte * p = reinterpret_cast<byte *>(&value);
   unsigned int i;
   for (i = 0; i < sizeof value; i++)
         *p++ = Wire.read();

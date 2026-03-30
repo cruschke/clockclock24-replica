@@ -175,13 +175,13 @@ void handle_post_sleep()
   Serial.println("Handle POST /sleep");
   if (_server.hasArg("day"))
   {
-    int day = _server.arg("day").toInt();
+    int sleep_day = _server.arg("day").toInt();
     for(int i = 0; i < 24; i++)
     {
       char arg[8];
       snprintf(arg, sizeof(arg), "h%d", i);
       if (_server.hasArg(arg))
-        set_sleep_time(day, i, _server.arg(arg).toInt() == 0 ? false : true);
+        set_sleep_time(sleep_day, i, _server.arg(arg).toInt() == 0 ? false : true);
     }
     save_sleep_time();
   }

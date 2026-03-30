@@ -151,6 +151,18 @@ void loop() {
     last_ntp_synced = ntp_synced;
   }
 
+  // Wi-Fi reconnection watchdog: if the router dropped us, attempt to rejoin every 30 s
+  if (get_connection_mode() == EXT_CONN && !is_connected())
+  {
+    static unsigned long _last_reconnect_ms = 0;
+    if (millis() - _last_reconnect_ms > 30000UL)
+    {
+      _last_reconnect_ms = millis();
+      Serial.println("Wi-Fi lost, reconnecting...");
+      WiFi.begin(get_ssid(), get_password());
+    }
+  }
+
   get_clock_mode() != OFF ? set_time() : stop();
 
   update_MDNS();
@@ -225,10 +237,10 @@ void set_waves()
   set_speed(400);
   set_acceleration(100);
   set_direction(CLOCKWISE2);
-  t_full_clock clock = get_clock_state_from_time(last_hour, last_minute);
+  t_full_clock clock_state = get_clock_state_from_time(last_hour, last_minute);
   for (int i = 0; i <8; i++)
   {
-    set_half_digit(i, clock.digit[i/2].halfs[i%2]);
+    set_half_digit(i, clock_state.digit[i/2].halfs[i%2]);
     delay(400);
   }
 }

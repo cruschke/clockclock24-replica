@@ -1,6 +1,8 @@
 # ClockClock 24 Replica
 This is my personal implementation of the "ClockClock 24" by [Humans Since 1982](https://www.humanssince1982.com/).
 
+> **Fork additions:** DST-aware IANA timezone support (Europe/North America/Australia), NTP offset fix (evaluated against packet UTC), `/now` endpoint for web UI clock sync, deferred Wi-Fi restart fix, AP->STA switch stability fix (clear stale SDK Wi-Fi state before connect), and `master/Makefile` with auto port discovery.
+
 <div align="center">
 <img width="900"  src="/images/photo1.jpg">
 </div>
