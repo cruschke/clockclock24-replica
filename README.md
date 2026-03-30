@@ -84,7 +84,7 @@ The code is multicore, one core gets bytes from the I2C bus and saves them in th
 ### Master
 The master code is runned by ESP8266, it is in charge of sending actual hands position to all the boards and to serve the web application.
 
-When powered on, it tries to connect to the configured WiFi network, if it fails then makes an open network. Time synchronization is made, if internet connection is available, using NTP service or it is taken from the client browser that visits the web app. When time changes it sends to the corresponding board the new hands position, the way in which these are to be moved (clockwise, counter clockwise, min distance, max distance, etc.), the speed and the acceleration. In the meantime, it responds to the requests made by the web application made available at http://192.168.1.10 or http://clockclock24.local.
+When powered on, it tries to connect to the configured WiFi network, if it fails then makes an open network. Time synchronization is made, if internet connection is available, using NTP service or it is taken from the client browser that visits the web app when NTP is unavailable. Time handling now uses a timezone identifier (`timezone_id`, for example `Europe/Berlin`) so daylight saving transitions are applied automatically for DST-observing regions and kept stable for non-DST regions. When time changes it sends to the corresponding board the new hands position, the way in which these are to be moved (clockwise, counter clockwise, min distance, max distance, etc.), the speed and the acceleration. In the meantime, it responds to the requests made by the web application made available at http://192.168.1.10 or http://clockclock24.local.
 
 * Animation modes available (for now):
     1. **Lazy**, moves only clock hands that need to be changed by traveling the minimum distance.
@@ -92,7 +92,7 @@ When powered on, it tries to connect to the configured WiFi network, if it fails
     3. **Waves**, reproduces a domino animation.
 
 ### Web interface
-On the web application an exact copy of the clock is shown, animations are also cloned and occur at the same time. The interface allows you to change clock mode, set the hours when it should not work and change the wireless connection.
+On the web application an exact copy of the clock is shown, animations are also cloned and occur at the same time. The interface allows you to change clock mode, configure timezone profile, set the hours when it should not work and change the wireless connection.
 
 Credits for the clock's web design animation go to [Manuel Wieser](https://manu.ninja/).
 

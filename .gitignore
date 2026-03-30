@@ -1,0 +1,59 @@
+# PlatformIO build artifacts
+.pio/
+.pioenvs/
+.piolibdeps/
+.platformio/
+build/
+dist/
+
+# Compiled objects
+*.o
+*.a
+*.so
+*.out
+*.elf
+*.hex
+*.bin
+
+# IDE and editor files
+.vscode/
+.idea/
+*.code-workspace
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Build outputs
+*.d
+*.su
+
+# Serial monitor logs
+*.log
+
+# Environment and configuration
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+
+# OS specific
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# Node modules (if used in web development)
+node_modules/
+dist/

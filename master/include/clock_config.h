@@ -56,9 +56,27 @@ bool get_sleep_time(int day, int hour);
 int get_connection_mode();
 
 /**
- * Gets current time zone based on UTC offset
+ * Gets current time zone based on UTC offset (legacy, deprecated)
  */
 int get_timezone();
+
+/**
+ * Gets current timezone identifier (IANA format, e.g., "Europe/Berlin")
+ * Returns pointer to string in EEPROM preferences; valid until next call
+ */
+const char *get_timezone_id();
+
+/**
+ * Gets whether timezone has been explicitly configured
+ * true = timezone_id is set and valid; false = unconfigured (clean-flash state)
+ */
+bool get_timezone_configured();
+
+/**
+ * Gets current time authority source
+ * Returns "network_ntp" or "browser_manual_fallback"
+ */
+const char *get_time_authority();
 
 /**
  * Gets current SSID
@@ -96,10 +114,29 @@ void save_sleep_time();
 void set_connection_mode(int value);
 
 /**
- *  Sets the time zone
+ *  Sets the time zone (legacy, deprecated)
  * @param value   time zone based on UTC offset
  */
 void set_timezone(int value);
+
+/**
+ *  Sets the timezone identifier (IANA format, e.g., "Europe/Berlin")
+ * Automatically sets timezone_configured=true on successful set
+ * @param value   IANA timezone identifier string
+ */
+void set_timezone_id(const char *value);
+
+/**
+ *  Sets timezone configuration state
+ * @param configured   true if user has explicitly set timezone_id; false for unconfigured state
+ */
+void set_timezone_configured(bool configured);
+
+/**
+ *  Sets the time authority source
+ * @param authority   "network_ntp" or "browser_manual_fallback"
+ */
+void set_time_authority(const char *authority);
 
 /**
  *  Sets SSID value

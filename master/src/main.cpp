@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <TimeLib.h>
+#include <string.h>
 
 #include "i2c.h"
 #include "clock_state.h"
@@ -14,6 +15,15 @@
 int last_hour = -1;
 int last_minute = -1;
 bool is_stopped = false;
+bool last_ntp_synced = false;
+int last_registered_timezone = -999;  // Track last timezone we registered for NTP
+bool last_in_dst_window = false;      // Track if we were in DST transition window last loop
+
+static time_t ntp_sync_provider_with_timezone()
+{
+  const char *tz = get_timezone_id();
+  return get_NTP_time_with_timezone((tz && strlen(tz) > 0) ? tz : "UTC");
+}
 
 /**
  * Sets clock to the current time
@@ -68,7 +78,7 @@ void setup() {
   {
     // Initialize NTP
     begin_NTP();
-    setSyncProvider(get_NTP_time);
+    setSyncProvider(ntp_sync_provider_with_timezone);
     // Sync every 30 minutes
     setSyncInterval(60 * 30);
   }
@@ -79,21 +89,66 @@ void setup() {
 
 void loop() {
 
-  if(get_connection_mode() == HOTSPOT && is_time_changed_browser())
+  if (is_time_changed_browser())
   {
-    t_browser_time browser_time = get_browser_time();
-    setTime(browser_time.hour, 
-      browser_time.minute, 
-      browser_time.second, 
-      browser_time.day, 
-      browser_time.month,  
-      browser_time.year);
+    if (get_connection_mode() == HOTSPOT || timeStatus() != timeSet)
+    {
+      t_browser_time browser_time = get_browser_time();
+      setTime(browser_time.hour,
+        browser_time.minute,
+        browser_time.second,
+        browser_time.day,
+        browser_time.month,
+        browser_time.year);
+      set_time_authority("browser_manual_fallback");
+      Serial.println("Applied browser/manual time (fallback mode)");
+    }
+    else if (get_connection_mode() == EXT_CONN)
+    {
+      // Timezone or time payload changed while NTP is authoritative:
+      // apply immediately by forcing a one-shot NTP resync with current timezone_id.
+      time_t synced = ntp_sync_provider_with_timezone();
+      if (synced > 0)
+      {
+        setTime(synced);
+        set_time_authority("network_ntp");
+        Serial.println("Applied timezone change via immediate NTP resync");
+      }
+      else
+      {
+        Serial.println("Immediate NTP resync failed after timezone change");
+      }
+    }
   }
 
   if(get_connection_mode() == EXT_CONN && get_timezone() != get_ntp_timezone())
   {
-    set_ntp_timezone(get_timezone());
-    setSyncProvider(get_NTP_time);
+    int current_tz = get_timezone();
+    set_ntp_timezone(current_tz);
+    // Only re-register if timezone changed from last time we registered
+    if (current_tz != last_registered_timezone)
+    {
+      last_registered_timezone = current_tz;
+      setSyncProvider(ntp_sync_provider_with_timezone);
+      Serial.printf("Registered NTP provider for timezone offset\n");
+    }
+  }
+
+  if (get_connection_mode() == EXT_CONN)
+  {
+    bool ntp_synced = (timeStatus() == timeSet);
+    if (ntp_synced)
+    {
+      set_time_authority("network_ntp");
+      // Only re-register provider on first successful sync (transition from not synced -> synced)
+      if (!last_ntp_synced)
+      {
+        last_registered_timezone = get_timezone();
+        setSyncProvider(ntp_sync_provider_with_timezone);
+        Serial.println("NTP synced, registered timezone-aware provider");
+      }
+    }
+    last_ntp_synced = ntp_synced;
   }
 
   get_clock_mode() != OFF ? set_time() : stop();
@@ -104,6 +159,23 @@ void loop() {
 
 void set_time()
 {
+  time_t next_transition = get_next_dst_transition();
+  bool in_dst_window = false;
+  
+  if (next_transition > 0)
+  {
+    long seconds_to_transition = (long)(next_transition - now());
+    in_dst_window = (seconds_to_transition >= 0 && seconds_to_transition <= 60);
+    
+    // Only log and resync when entering transition window
+    if (in_dst_window && !last_in_dst_window)
+    {
+      setSyncProvider(ntp_sync_provider_with_timezone);
+      Serial.printf("DST transition window active, forcing sync (in %ld sec)\n", seconds_to_transition);
+    }
+  }
+  last_in_dst_window = in_dst_window;
+
   int day_week = (weekday() + 5) % 7;
   if(get_sleep_time(day_week, hour()))
     stop();
