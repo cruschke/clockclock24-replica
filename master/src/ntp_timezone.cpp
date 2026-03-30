@@ -115,12 +115,14 @@ static void compute_dst_window_utc(
   }
 
   if (family == DST_RULE_AUSTRALIA) {
+    // Australian DST season: starts first Sunday Oct (year), ends first Sunday Apr (year+1).
+    // start_utc and end_utc therefore span two calendar years — end is April of year+1.
     int spring_day = nth_weekday_of_month(year, 10, 0, 1);
-    int fall_day = nth_weekday_of_month(year, 4, 0, 1);
-    time_t spring_local_std = make_utc_epoch(year, 10, spring_day, 2, 0, 0);
-    time_t fall_local_dst = make_utc_epoch(year, 4, fall_day, 3, 0, 0);
+    int fall_day   = nth_weekday_of_month(year + 1, 4, 0, 1);  // April of NEXT year
+    time_t spring_local_std = make_utc_epoch(year,     10, spring_day, 2, 0, 0);
+    time_t fall_local_dst   = make_utc_epoch(year + 1,  4, fall_day,   3, 0, 0);
     *start_utc = spring_local_std - profile->standard_offset_seconds;
-    *end_utc = fall_local_dst - profile->daylight_offset_seconds;
+    *end_utc   = fall_local_dst   - profile->daylight_offset_seconds;
     return;
   }
 
@@ -296,28 +298,24 @@ int get_timezone_offset_and_transition(
           }
         }
       } else if (family == DST_RULE_AUSTRALIA) {
-        // Southern hemisphere season spans across years.
-        time_t start_prev = 0;
-        time_t end_this = 0;
-        time_t start_this = 0;
-        time_t end_next = 0;
-        compute_dst_window_utc(profile, year - 1, family, &start_prev, &end_this);
-        compute_dst_window_utc(profile, year, family, &start_this, &end_next);
+        // Season is Oct(year-1) -> Apr(year). compute_dst_window_utc(year-1) gives:
+        //   start = Oct(year-1),  end = Apr(year)  — both correct.
+        time_t start_utc = 0;
+        time_t end_utc = 0;
+        compute_dst_window_utc(profile, year - 1, family, &start_utc, &end_utc);
 
-        bool in_first_window = (epoch_utc >= start_prev && epoch_utc < end_this);
-        bool in_second_window = (epoch_utc >= start_this && epoch_utc < end_next);
-        is_dst = in_first_window || in_second_window;
-        current_offset = is_dst ? profile->daylight_offset_seconds : profile->standard_offset_seconds;
+        is_dst = (start_utc > 0 && end_utc > 0 &&
+                  epoch_utc >= start_utc && epoch_utc < end_utc);
+        current_offset = is_dst ? profile->daylight_offset_seconds
+                                : profile->standard_offset_seconds;
 
-        if (epoch_utc < start_this) {
-          next_transition = start_this;
-        } else if (epoch_utc < end_next) {
-          next_transition = end_next;
+        if (is_dst) {
+          next_transition = end_utc;  // next change: fall back in April
         } else {
-          time_t start_next = 0;
-          time_t end_future = 0;
-          compute_dst_window_utc(profile, year + 1, family, &start_next, &end_future);
-          next_transition = start_next;
+          // Next change: spring forward in October of current year
+          time_t next_start = 0, next_end = 0;
+          compute_dst_window_utc(profile, year, family, &next_start, &next_end);
+          next_transition = next_start;
         }
       }
     }
