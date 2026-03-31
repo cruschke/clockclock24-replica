@@ -1,5 +1,19 @@
 #include "clock_manager.h"
 
+// ===== Noise Reduction Constants (Motor Staggering & Derating) =====
+// STAGGER_INTERVAL_MS: Delay (ms) between board startup commands to reduce peak current
+// Tunable range: 0-50ms (default 10-20ms). Tweak to balance noise vs. animation lag.
+const int STAGGER_INTERVAL_MS = 15;
+
+// SPEED_FACTOR: Global motor speed multiplier (0.70-1.00, default 0.90 = 90%)
+// Lower values reduce speed and noise; higher values preserve baseline speed.
+const float SPEED_FACTOR = 0.90f;
+
+// ACCELERATION_FACTOR: Global motor acceleration multiplier (0.70-1.00, default 0.80 = 80%)
+// Lower values reduce acceleration noise; higher values preserve baseline ramp-up.
+const float ACCELERATION_FACTOR = 0.80f;
+// ====================================================================
+
 int _speed = 200;
 int _acceleration = 100;
 int _direction = MIN_DISTANCE;
@@ -49,6 +63,17 @@ void send_half_digit(int index, t_half_digit half_digit)
   Wire.endTransmission();
 }
 
+// Staggered send: applies STAGGER_INTERVAL_MS delay per board index for noise reduction
+void staggered_send_half_digit(int index, t_half_digit half_digit)
+{
+  // Calculate stagger offset: board 0 sends immediately, board 1 waits STAGGER_INTERVAL_MS, etc.
+  int stagger_delay_ms = index * STAGGER_INTERVAL_MS;
+  if (stagger_delay_ms > 0) {
+    delay(stagger_delay_ms);
+  }
+  send_half_digit(index, half_digit);
+}
+
 // 0 <= index < 4
 void send_digit(int index, t_digit digit)
 {
@@ -74,10 +99,10 @@ t_half_digit get_full_half_digit(t_half_digitl lite_digit)
         tmp.change_counter[i] = _counter;
         tmp.clocks[i].angle_h = lite_digit.clocks[i].angle_h;
         tmp.clocks[i].angle_m = lite_digit.clocks[i].angle_m;
-        tmp.clocks[i].speed_h = _speed;
-        tmp.clocks[i].speed_m = _speed;
-        tmp.clocks[i].accel_h = _acceleration;
-        tmp.clocks[i].accel_m = _acceleration;
+        tmp.clocks[i].speed_h = (int)(_speed * SPEED_FACTOR);
+        tmp.clocks[i].speed_m = (int)(_speed * SPEED_FACTOR);
+        tmp.clocks[i].accel_h = (int)(_acceleration * ACCELERATION_FACTOR);
+        tmp.clocks[i].accel_m = (int)(_acceleration * ACCELERATION_FACTOR);
         tmp.clocks[i].mode_h = _direction;
         tmp.clocks[i].mode_m = _direction;
         tmp.clocks[i].adjust_h = 0;
@@ -89,6 +114,21 @@ t_half_digit get_full_half_digit(t_half_digitl lite_digit)
 void set_clock(t_full_clock clock_state)
 {
   send_clock(clock_state);
+  _counter++;
+}
+
+// Set clock with staggered board-by-board sending for noise reduction
+void set_clock_staggered(t_full_clock clock_state)
+{
+  // Send each of 8 boards with stagger delay to spread motor startup
+  for (int i = 0; i < 8; i++)
+  {
+    int digit_idx = i / 2;        // Which digit group (0-3)
+    int half_idx = i % 2;         // Which half of that digit (0 or 1)
+    t_half_digit hd = get_full_half_digit(clock_state.digit[digit_idx].halfs[half_idx]);
+    staggered_send_half_digit(i, hd);
+    _last_state[i] = hd;
+  }
   _counter++;
 }
 
@@ -108,11 +148,28 @@ void set_half_digit(int index, t_half_digitl half)
     _counter++;
 }
 
+// Set half digit with staggering for noise reduction
+void set_half_digit_staggered(int index, t_half_digitl half)
+{
+    t_half_digit hd = get_full_half_digit(half);
+    staggered_send_half_digit(index, hd);
+    _last_state[index] = hd;
+    _counter++;
+}
+
 void set_clock_time(int h, int m)
 {
   if(h < 0 || h > 99 || m < 0 || m > 99 )
     return;
   set_clock(get_clock_state_from_time(h, m));
+}
+
+// Set clock time with staggered board sending for noise reduction
+void set_clock_time_staggered(int h, int m)
+{
+  if(h < 0 || h > 99 || m < 0 || m > 99 )
+    return;
+  set_clock_staggered(get_clock_state_from_time(h, m));
 }
 
 t_full_clock get_clock_state_from_time(int h, int m)
@@ -121,7 +178,14 @@ t_full_clock get_clock_state_from_time(int h, int m)
   int d1 = h - d0 * 10;  
   int d2 = m / 10;
   int d3 = m - d2 * 10;
-  Serial.printf("Set time: %d:%d\n", h, m);
+  static int _last_logged_h = -1;
+  static int _last_logged_m = -1;
+  if (h != _last_logged_h || m != _last_logged_m)
+  {
+    _last_logged_h = h;
+    _last_logged_m = m;
+    Serial.printf("Set time: %02d:%02d\n", h, m);
+  }
   t_full_clock clock_state = {_digits[d0], _digits[d1], _digits[d2], _digits[d3]};
   return clock_state;
 }

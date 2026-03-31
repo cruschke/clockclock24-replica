@@ -196,18 +196,30 @@ void set_time()
     is_stopped = false;
     last_hour = hour();
     last_minute = minute();
+    
+    // T013: Timing instrumentation for noise reduction validation
+    unsigned long anim_start_ms = millis();
+    const char* mode_name = "UNKNOWN";
+    
     switch(get_clock_mode())
     {
       case LAZY:
+        mode_name = "LAZY";
         set_lazy();
         break;
       case FUN:
+        mode_name = "FUN";
         set_fun();
         break;
       case WAVES:
+        mode_name = "WAVES";
         set_waves();
         break;
     }
+    
+    unsigned long anim_end_ms = millis();
+    unsigned long anim_duration_ms = anim_end_ms - anim_start_ms;
+    Serial.printf("Anim[%s] duration: %lu ms\n", mode_name, anim_duration_ms);
   }
 }
 
@@ -216,7 +228,7 @@ void set_lazy()
   set_speed(200);
   set_acceleration(100);
   set_direction(MIN_DISTANCE);
-  set_clock_time(last_hour, last_minute);
+  set_clock_time_staggered(last_hour, last_minute);
 }
 
 void set_fun()
@@ -224,7 +236,7 @@ void set_fun()
   set_speed(400);
   set_acceleration(150);
   set_direction(CLOCKWISE2);
-  set_clock_time(last_hour, last_minute);
+  set_clock_time_staggered(last_hour, last_minute);
 }
 
 void set_waves()
@@ -240,7 +252,7 @@ void set_waves()
   t_full_clock clock_state = get_clock_state_from_time(last_hour, last_minute);
   for (int i = 0; i <8; i++)
   {
-    set_half_digit(i, clock_state.digit[i/2].halfs[i%2]);
+    set_half_digit_staggered(i, clock_state.digit[i/2].halfs[i%2]);
     delay(400);
   }
 }
