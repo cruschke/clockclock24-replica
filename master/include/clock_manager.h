@@ -50,6 +50,14 @@ void set_acceleration(int value);
 void send_half_digit(int index, t_half_digit half_digit);
 
 /** 
+ * Sends half digit to a board with stagger delay for noise reduction
+ * Applies STAGGER_INTERVAL_MS delay based on board index to spread motor startup
+ * @param index         board index (0 <= index < 8)
+ * @param half_digit    digit to send
+*/
+void staggered_send_half_digit(int index, t_half_digit half_digit);
+
+/** 
  * Sends a digit to the specified boards
  * @param index         board index (0 <= index < 8)
  * @param half_digit    digit to send
