@@ -196,18 +196,30 @@ void set_time()
     is_stopped = false;
     last_hour = hour();
     last_minute = minute();
+    
+    // T013: Timing instrumentation for noise reduction validation
+    unsigned long anim_start_ms = millis();
+    const char* mode_name = "UNKNOWN";
+    
     switch(get_clock_mode())
     {
       case LAZY:
+        mode_name = "LAZY";
         set_lazy();
         break;
       case FUN:
+        mode_name = "FUN";
         set_fun();
         break;
       case WAVES:
+        mode_name = "WAVES";
         set_waves();
         break;
     }
+    
+    unsigned long anim_end_ms = millis();
+    unsigned long anim_duration_ms = anim_end_ms - anim_start_ms;
+    Serial.printf("Anim[%s] duration: %lu ms\n", mode_name, anim_duration_ms);
   }
 }
 
