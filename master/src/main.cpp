@@ -216,7 +216,7 @@ void set_lazy()
   set_speed(200);
   set_acceleration(100);
   set_direction(MIN_DISTANCE);
-  set_clock_time(last_hour, last_minute);
+  set_clock_time_staggered(last_hour, last_minute);
 }
 
 void set_fun()
@@ -224,7 +224,7 @@ void set_fun()
   set_speed(400);
   set_acceleration(150);
   set_direction(CLOCKWISE2);
-  set_clock_time(last_hour, last_minute);
+  set_clock_time_staggered(last_hour, last_minute);
 }
 
 void set_waves()
@@ -240,7 +240,7 @@ void set_waves()
   t_full_clock clock_state = get_clock_state_from_time(last_hour, last_minute);
   for (int i = 0; i <8; i++)
   {
-    set_half_digit(i, clock_state.digit[i/2].halfs[i%2]);
+    set_half_digit_staggered(i, clock_state.digit[i/2].halfs[i%2]);
     delay(400);
   }
 }

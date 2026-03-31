@@ -85,6 +85,15 @@ t_half_digit get_full_half_digit(t_half_digitl lite_digit);
 void set_clock(t_full_clock clock_state);
 
 /** 
+ * Sends the full clock configuration to boards with staggered timing
+ * and increments the state counter. Applied for noise reduction during
+ * synchronized motor startup. Each board receives its command with a
+ * stagger delay based on STAGGER_INTERVAL_MS.
+ * @param clock_state   clock state
+*/
+void set_clock_staggered(t_full_clock clock_state);
+
+/** 
  * Sends a digit to the specified boards and increments
  * the state counter
  * @param index     digit index (0 <= index < 4)
@@ -101,11 +110,26 @@ void set_digit(int index, t_digit digit);
 void set_half_digit(int index, t_half_digitl half);
 
 /** 
+ * Sends a half digit to the specified board with staggering and increments
+ * the state counter. Used in wave animations to spread motor startup.
+ * @param index     digit index (0 <= index < 8)
+ * @param half      half digit value
+*/
+void set_half_digit_staggered(int index, t_half_digitl half);
+
+/** 
  * Sets the specified time on the clock
  * @param h     hour
  * @param m     minute
 */
 void set_clock_time(int h, int m);
+
+/** 
+ * Sets the specified time on the clock with staggered board sending
+ * @param h     hour
+ * @param m     minute
+*/
+void set_clock_time_staggered(int h, int m);
 
 /** 
  * Returns a full clock state from time

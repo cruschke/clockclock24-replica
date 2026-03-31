@@ -117,6 +117,21 @@ void set_clock(t_full_clock clock_state)
   _counter++;
 }
 
+// Set clock with staggered board-by-board sending for noise reduction
+void set_clock_staggered(t_full_clock clock_state)
+{
+  // Send each of 8 boards with stagger delay to spread motor startup
+  for (int i = 0; i < 8; i++)
+  {
+    int digit_idx = i / 2;        // Which digit group (0-3)
+    int half_idx = i % 2;         // Which half of that digit (0 or 1)
+    t_half_digit hd = get_full_half_digit(clock_state.digit[digit_idx].halfs[half_idx]);
+    staggered_send_half_digit(i, hd);
+    _last_state[i] = hd;
+  }
+  _counter++;
+}
+
 // 0 <= index < 4
 void set_digit(int index, t_digit digit)
 {
@@ -133,11 +148,28 @@ void set_half_digit(int index, t_half_digitl half)
     _counter++;
 }
 
+// Set half digit with staggering for noise reduction
+void set_half_digit_staggered(int index, t_half_digitl half)
+{
+    t_half_digit hd = get_full_half_digit(half);
+    staggered_send_half_digit(index, hd);
+    _last_state[index] = hd;
+    _counter++;
+}
+
 void set_clock_time(int h, int m)
 {
   if(h < 0 || h > 99 || m < 0 || m > 99 )
     return;
   set_clock(get_clock_state_from_time(h, m));
+}
+
+// Set clock time with staggered board sending for noise reduction
+void set_clock_time_staggered(int h, int m)
+{
+  if(h < 0 || h > 99 || m < 0 || m > 99 )
+    return;
+  set_clock_staggered(get_clock_state_from_time(h, m));
 }
 
 t_full_clock get_clock_state_from_time(int h, int m)
