@@ -25,35 +25,21 @@ static time_t ntp_sync_provider_with_timezone()
   return get_NTP_time_with_timezone((tz && strlen(tz) > 0) ? tz : "UTC");
 }
 
-/**
- * Sets clock to the current time
-*/
 void set_time();
-
-/**
- * Sets clock time using lazy animation
-*/
 void set_lazy();
-
-/**
- * Sets clock time using fun animation
-*/
 void set_fun();
-
-/**
- * Sets clock time using waves animation
-*/
 void set_waves();
-
-/**
- * Sets clock to stop state
-*/
+void set_propeller();
+void set_arrow();
+void set_ripple();
+void set_bubble();
+void set_gear();
+void set_scatter();
+void set_diagonal();
+void set_cascade();
+void set_cycle();
+void dispatch_animation(int mode);
 void stop();
-
-/**
- * Custom delay to update web clients
- * @param value   time in milliseconds
-*/
 void _delay(int value);
 
 void setup() {
@@ -197,25 +183,25 @@ void set_time()
     last_hour = hour();
     last_minute = minute();
     
-    // T013: Timing instrumentation for noise reduction validation
+    // Timing instrumentation for noise reduction validation
     unsigned long anim_start_ms = millis();
     const char* mode_name = "UNKNOWN";
-    
     switch(get_clock_mode())
     {
-      case LAZY:
-        mode_name = "LAZY";
-        set_lazy();
-        break;
-      case FUN:
-        mode_name = "FUN";
-        set_fun();
-        break;
-      case WAVES:
-        mode_name = "WAVES";
-        set_waves();
-        break;
+      case LAZY:       mode_name = "LAZY"; break;
+      case FUN:        mode_name = "FUN"; break;
+      case WAVES:      mode_name = "WAVES"; break;
+      case PROPELLER:  mode_name = "PROPELLER"; break;
+      case ARROW:      mode_name = "ARROW"; break;
+      case RIPPLE:     mode_name = "RIPPLE"; break;
+      case BUBBLE:     mode_name = "BUBBLE"; break;
+      case GEAR:       mode_name = "GEAR"; break;
+      case SCATTER:    mode_name = "SCATTER"; break;
+      case DIAGONAL:   mode_name = "DIAGONAL"; break;
+      case CASCADE:    mode_name = "CASCADE"; break;
+      case CYCLE:      mode_name = "CYCLE"; break;
     }
+    dispatch_animation(get_clock_mode());
     
     unsigned long anim_end_ms = millis();
     unsigned long anim_duration_ms = anim_end_ms - anim_start_ms;
@@ -245,7 +231,7 @@ void set_waves()
   set_acceleration(150);
   set_direction(MIN_DISTANCE);
   set_clock(d_IIII);
-  _delay(9000);
+  _delay(5000);
   set_speed(400);
   set_acceleration(100);
   set_direction(CLOCKWISE2);
@@ -253,7 +239,7 @@ void set_waves()
   for (int i = 0; i <8; i++)
   {
     set_half_digit_staggered(i, clock_state.digit[i/2].halfs[i%2]);
-    delay(400);
+    delay(100);
   }
 }
 
@@ -273,10 +259,272 @@ void stop()
 
 void _delay(int value)
 {
-  for (int i = 0; i <value/100; i++)
+  for (int i = 0; i < value / 100; i++)
   {
     update_MDNS();
     handle_webclient();
-    delay(value/100);
+    delay(100);
   }
+}
+
+void dispatch_animation(int mode)
+{
+  switch(mode)
+  {
+    case LAZY:      set_lazy();      break;
+    case FUN:       set_fun();       break;
+    case WAVES:     set_waves();     break;
+    case PROPELLER: set_propeller(); break;
+    case ARROW:     set_arrow();     break;
+    case RIPPLE:    set_ripple();    break;
+    case BUBBLE:    set_bubble();    break;
+    case GEAR:      set_gear();      break;
+    case SCATTER:   /* disabled — requires slave reflash for COUNTERCLOCKWISE5 */
+    case DIAGONAL:  set_diagonal();  break;
+    case CASCADE:   set_cascade();   break;
+    case CYCLE:     set_cycle();     break;
+  }
+}
+
+void set_propeller()
+{
+  set_speed(800);
+  set_acceleration(200);
+  set_direction(CLOCKWISE);
+  t_full_clock clock = get_clock_state_from_time(last_hour, last_minute);
+  for (int i = 0; i < 8; i++)
+  {
+    t_half_digit hd = get_full_half_digit(clock.digit[i/2].halfs[i%2]);
+    for (int j = 0; j < 3; j++)
+    {
+      hd.clocks[j].mode_h = CLOCKWISE;
+      hd.clocks[j].mode_m = COUNTERCLOCKWISE;
+    }
+    set_half_digit_full(i, hd);
+  }
+}
+
+void set_arrow()
+{
+  set_speed(800);
+  set_acceleration(200);
+  set_direction(MIN_DISTANCE);
+  set_clock(d_joint);
+  _delay(5000);
+
+  set_speed(800);
+  set_acceleration(200);
+  set_direction(CLOCKWISE);
+
+  t_full_clock target = get_clock_state_from_time(last_hour, last_minute);
+
+  const int MIN_PROJ = -14;
+  const int MAX_PROJ = 14;
+  for (int proj = MIN_PROJ; proj <= MAX_PROJ; proj++)
+  {
+    bool group_has_clock = false;
+    for (int hd = 0; hd < 8; hd++)
+    {
+      t_half_digitl lite = target.digit[hd / 2].halfs[hd % 2];
+      for (int p = 0; p < 3; p++)
+      {
+        int col = hd;
+        int row = p;
+        if (2 * col - 7 * row == proj)
+        {
+          set_single_clock_full(hd, p, lite, CLOCKWISE, COUNTERCLOCKWISE);
+          group_has_clock = true;
+        }
+      }
+    }
+    if (group_has_clock && proj < MAX_PROJ)
+      delay(25);
+  }
+}
+
+void set_ripple()
+{
+  set_speed(800);
+  set_acceleration(200);
+  set_direction(MIN_DISTANCE);
+  set_clock(d_WAVE);
+  _delay(5000);
+  set_speed(800);
+  set_acceleration(200);
+  set_direction(CLOCKWISE);
+
+  t_full_clock target = get_clock_state_from_time(last_hour, last_minute);
+
+  const int MAX_DIST = 4;
+  for (int d = 0; d <= MAX_DIST; d++)
+  {
+    for (int hd = 0; hd < 8; hd++)
+    {
+      int mode_h = (hd < 4) ? CLOCKWISE : COUNTERCLOCKWISE;
+      int mode_m = (hd < 4) ? COUNTERCLOCKWISE : CLOCKWISE;
+      t_half_digitl lite = target.digit[hd / 2].halfs[hd % 2];
+      for (int p = 0; p < 3; p++)
+      {
+        float col_dist = fabsf((float)hd - 3.5f);
+        float row_dist = fabsf((float)p - 1.0f);
+        int dist = (int)(col_dist + row_dist);
+        if (dist == d)
+          set_single_clock_full(hd, p, lite, mode_h, mode_m);
+      }
+    }
+    if (d < MAX_DIST)
+      delay(250);
+  }
+}
+
+void set_bubble()
+{
+  set_speed(800);
+  set_acceleration(200);
+  set_direction(MIN_DISTANCE);
+  set_clock(d_bubble);
+  _delay(5000);
+  set_speed(800);
+  set_acceleration(200);
+  set_direction(CLOCKWISE);
+  t_full_clock clock = get_clock_state_from_time(last_hour, last_minute);
+  for (int i = 0; i < 8; i++)
+  {
+    t_half_digit hd = get_full_half_digit(clock.digit[i/2].halfs[i%2]);
+    for (int j = 0; j < 3; j++)
+    {
+      bool hour_cw = ((i + j) % 2 == 0);
+      if (i % 2 == 0)
+        hour_cw = !hour_cw;
+      if (hour_cw)
+      {
+        hd.clocks[j].mode_h = CLOCKWISE;
+        hd.clocks[j].mode_m = COUNTERCLOCKWISE;
+      }
+      else
+      {
+        hd.clocks[j].mode_h = COUNTERCLOCKWISE;
+        hd.clocks[j].mode_m = CLOCKWISE;
+      }
+    }
+    set_half_digit_full(i, hd);
+  }
+}
+
+void set_gear()
+{
+  set_speed(800);
+  set_acceleration(200);
+  set_direction(MIN_DISTANCE);
+  set_clock(d_CENT);
+  _delay(5000);
+
+  set_speed(800);
+  set_acceleration(200);
+  set_direction(CLOCKWISE);
+
+  t_full_clock target = get_clock_state_from_time(last_hour, last_minute);
+
+  const int MAX_GROUP = 3;
+  for (int g = 0; g <= MAX_GROUP; g++)
+  {
+    for (int hd = 0; hd < 8; hd++)
+    {
+      t_half_digitl lite = target.digit[hd / 2].halfs[hd % 2];
+      for (int p = 0; p < 3; p++)
+      {
+        int col_dist = min(abs(hd - 3), abs(hd - 4));
+        int row_dist = abs(p - 1);
+        int group = max(col_dist, row_dist);
+        if (group == g)
+          set_single_clock_full(hd, p, lite, CLOCKWISE, CLOCKWISE);
+      }
+    }
+    if (g < MAX_GROUP)
+      delay(300);
+  }
+}
+
+void set_scatter()
+{
+  // Known limitation: COUNTERCLOCKWISE5 (value 13) is not recognised by
+  // unflashed slave firmware. Minute hand rotation will be incorrect but
+  // the final time angle is still reached correctly.
+  set_speed(400);
+  set_acceleration(150);
+  set_direction(COUNTERCLOCKWISE3);
+
+  t_full_clock clock = get_clock_state_from_time(last_hour, last_minute);
+
+  for (int i = 0; i < 8; i++)
+  {
+    t_half_digit hd = get_full_half_digit(clock.digit[i/2].halfs[i%2]);
+    for (int j = 0; j < 3; j++)
+    {
+      hd.clocks[j].mode_h = COUNTERCLOCKWISE3;
+      hd.clocks[j].mode_m = COUNTERCLOCKWISE5;
+      hd.clocks[j].speed_m = 800;
+    }
+    set_half_digit_full(i, hd);
+    if (i < 7)
+      delay(100);
+  }
+}
+
+void set_diagonal()
+{
+  set_speed(800);
+  set_acceleration(200);
+  set_direction(MIN_DISTANCE);
+  set_clock(d_diagonal);
+  _delay(5000);
+  set_speed(800);
+  set_acceleration(200);
+  set_direction(CLOCKWISE);
+  t_full_clock clock = get_clock_state_from_time(last_hour, last_minute);
+  for (int i = 0; i < 8; i++)
+  {
+    set_half_digit(i, clock.digit[i/2].halfs[i%2]);
+    delay(100);
+  }
+}
+
+void set_cascade()
+{
+  set_speed(800);
+  set_acceleration(200);
+  set_direction(MIN_DISTANCE);
+  set_clock(d_stop);
+  _delay(5000);
+
+  set_speed(800);
+  set_acceleration(200);
+  set_direction(COUNTERCLOCKWISE);
+
+  t_full_clock clock = get_clock_state_from_time(last_hour, last_minute);
+
+  for (int i = 0; i < 8; i++)
+  {
+    t_half_digit hd = get_full_half_digit(clock.digit[i/2].halfs[i%2]);
+    for (int j = 0; j < 3; j++)
+    {
+      hd.clocks[j].mode_h = COUNTERCLOCKWISE;
+      hd.clocks[j].mode_m = COUNTERCLOCKWISE;
+    }
+    set_half_digit_full(i, hd);
+    if (i < 7)
+      delay(100);
+  }
+}
+
+void set_cycle()
+{
+  static const int cycle_order[] = {
+    FUN, WAVES, ARROW, RIPPLE, BUBBLE, PROPELLER, DIAGONAL, GEAR, CASCADE
+    // SCATTER disabled — requires slave reflash for COUNTERCLOCKWISE5
+  };
+  static const int cycle_count = sizeof(cycle_order) / sizeof(cycle_order[0]);
+  int minutes_today = last_hour * 60 + last_minute;
+  int mode = cycle_order[minutes_today % cycle_count];
+  dispatch_animation(mode);
 }

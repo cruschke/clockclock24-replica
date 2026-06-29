@@ -157,6 +157,37 @@ void set_half_digit_staggered(int index, t_half_digitl half)
     _counter++;
 }
 
+// Send a pre-built t_half_digit directly (caller controls per-hand direction)
+void set_half_digit_full(int index, t_half_digit half)
+{
+    half.change_counter[0] = _counter;
+    half.change_counter[1] = _counter;
+    half.change_counter[2] = _counter;
+    send_half_digit(index, half);
+    _last_state[index] = half;
+    _counter++;
+}
+
+// Update a single clock face within a half-digit, leave others undisturbed
+void set_single_clock_full(int hd, int p, t_half_digitl lite, int mode_h, int mode_m)
+{
+    t_half_digit tmp = _last_state[hd];
+    tmp.clocks[p].angle_h = lite.clocks[p].angle_h;
+    tmp.clocks[p].angle_m = lite.clocks[p].angle_m;
+    tmp.clocks[p].speed_h = (int)(_speed * SPEED_FACTOR);
+    tmp.clocks[p].speed_m = (int)(_speed * SPEED_FACTOR);
+    tmp.clocks[p].accel_h = (int)(_acceleration * ACCELERATION_FACTOR);
+    tmp.clocks[p].accel_m = (int)(_acceleration * ACCELERATION_FACTOR);
+    tmp.clocks[p].mode_h = mode_h;
+    tmp.clocks[p].mode_m = mode_m;
+    tmp.clocks[p].adjust_h = 0;
+    tmp.clocks[p].adjust_m = 0;
+    tmp.change_counter[p] = _counter;
+    send_half_digit(hd, tmp);
+    _last_state[hd] = tmp;
+    _counter++;
+}
+
 void set_clock_time(int h, int m)
 {
   if(h < 0 || h > 99 || m < 0 || m > 99 )

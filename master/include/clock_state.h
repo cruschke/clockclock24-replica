@@ -18,7 +18,8 @@ enum directions
   MAX_DISTANCE,
   MAX_DISTANCE2,
   MAX_DISTANCE3,
-  ADJUST_HAND
+  ADJUST_HAND,
+  COUNTERCLOCKWISE5  // 4 extra full CCW rotations (master only; slave firmware not updated)
 };
 
 typedef struct clock_state

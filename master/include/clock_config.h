@@ -12,7 +12,7 @@ enum wireless_modes
   EXT_CONN
 };
 
-/** 
+/**
  * Clock animation's modes
  */
 enum clock_modes
@@ -20,8 +20,19 @@ enum clock_modes
   LAZY,
   FUN,
   WAVES,
-  OFF
+  PROPELLER,
+  ARROW,
+  RIPPLE,
+  BUBBLE,
+  GEAR,
+  SCATTER,
+  DIAGONAL,
+  CASCADE,
+  CYCLE
 };
+
+// Virtual mode — not part of clock_modes enum; stored as 255 in EEPROM
+#define OFF 255
 
 /**
  * Load configuration from the EEPROM

@@ -1,7 +1,7 @@
 # ClockClock 24 Replica
 This is my personal implementation of the "ClockClock 24" by [Humans Since 1982](https://www.humanssince1982.com/).
 
-> **Fork additions:** DST-aware IANA timezone support (Europe/North America/Australia), NTP offset fix (evaluated against packet UTC), `/now` endpoint for web UI clock sync, deferred Wi-Fi restart fix, AP->STA switch stability fix (clear stale SDK Wi-Fi state before connect), `master/Makefile` with auto port discovery, and motor noise reduction via board startup staggering + speed/acceleration derating.
+> **Fork additions:** DST-aware IANA timezone support (Europe/North America/Australia), NTP offset fix (evaluated against packet UTC), `/now` endpoint for web UI clock sync, deferred Wi-Fi restart fix, AP->STA switch stability fix (clear stale SDK Wi-Fi state before connect), `master/Makefile` with auto port discovery, motor noise reduction via board startup staggering + speed/acceleration derating, and 9 new animation modes cherry-picked from [aslafsky/clockclock24-replica-all-animtions](https://github.com/aslafsky/clockclock24-replica-all-animtions).
 
 <div align="center">
 <img width="900"  src="/images/photo1.jpg">
@@ -88,10 +88,18 @@ The master code is runned by ESP8266, it is in charge of sending actual hands po
 
 When powered on, it tries to connect to the configured WiFi network, if it fails then makes an open network. Time synchronization is made, if internet connection is available, using NTP service or it is taken from the client browser that visits the web app when NTP is unavailable. Time handling now uses a timezone identifier (`timezone_id`, for example `Europe/Berlin`) so daylight saving transitions are applied automatically for DST-observing regions and kept stable for non-DST regions. When time changes it sends to the corresponding board the new hands position, the way in which these are to be moved (clockwise, counter clockwise, min distance, max distance, etc.), the speed and the acceleration. In the meantime, it responds to the requests made by the web application made available at http://192.168.1.10 or http://clockclock24.local.
 
-* Animation modes available (for now):
-    1. **Lazy**, moves only clock hands that need to be changed by traveling the minimum distance.
-    2. **Fun**, moves all the clock's hands in a clockwise direction.
-    3. **Waves**, reproduces a domino animation.
+* Animation modes available:
+    1. **Lazy** — moves only changed hands by minimum distance
+    2. **Fun** — moves all hands clockwise
+    3. **Waves** — domino wave animation
+    4. **Propeller** — all hands spin CW/CCW simultaneously into the new time
+    5. **Arrow** — hands collapse to a joint pose, then a diagonal wavefront reveals the time
+    6. **Ripple** — hands collapse to a wave pose, then a ripple from the centre reveals the time
+    7. **Bubble** — hands collapse to a bubble pose, then a checkerboard of spins reveals the time
+    8. **Gear** — hands collapse to a fan pose, then concentric rings expand outward
+    9. **Diagonal** — hands collapse to diagonal, then reveal left-to-right
+    10. **Cascade** — hands collapse to pointing-down, then columns reveal one by one CCW
+    11. **Cycle** — auto-rotates through all non-Lazy modes each minute
 
 ### Web interface
 On the web application an exact copy of the clock is shown, animations are also cloned and occur at the same time. The interface allows you to change clock mode, configure timezone profile, set the hours when it should not work and change the wireless connection.
