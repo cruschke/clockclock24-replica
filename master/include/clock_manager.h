@@ -117,7 +117,11 @@ void set_half_digit(int index, t_half_digitl half);
 */
 void set_half_digit_staggered(int index, t_half_digitl half);
 
-/** 
+void set_half_digit_full(int index, t_half_digit half);
+
+void set_single_clock_full(int hd, int p, t_half_digitl lite, int mode_h, int mode_m);
+
+/**
  * Sets the specified time on the clock
  * @param h     hour
  * @param m     minute
