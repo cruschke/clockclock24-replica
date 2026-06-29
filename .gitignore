@@ -57,3 +57,5 @@ __pycache__/
 # Node modules (if used in web development)
 node_modules/
 dist/
+# Added by code-review-graph
+.code-review-graph/
