@@ -201,8 +201,12 @@ void set_time()
       case CASCADE:    mode_name = "CASCADE"; break;
       case CYCLE:      mode_name = "CYCLE"; break;
     }
-    dispatch_animation(get_clock_mode());
-    
+    int sh = get_silent_hour();
+    if (sh >= 0 && hour() >= sh)
+      set_lazy();
+    else
+      dispatch_animation(get_clock_mode());
+
     unsigned long anim_end_ms = millis();
     unsigned long anim_duration_ms = anim_end_ms - anim_start_ms;
     Serial.printf("Anim[%s] duration: %lu ms\n", mode_name, anim_duration_ms);

@@ -64,6 +64,11 @@ void handle_post_adjust();
 void handle_post_mode();
 
 /**
+ * Handles POST /silent
+*/
+void handle_post_silent();
+
+/**
  * Handles POST /sleep
 */
 void handle_post_sleep();

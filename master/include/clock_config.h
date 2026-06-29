@@ -150,6 +150,18 @@ void set_timezone_configured(bool configured);
 void set_time_authority(const char *authority);
 
 /**
+ * Gets the silent mode start hour
+ * @return hour (0-23) or -1 if disabled
+ */
+int get_silent_hour();
+
+/**
+ * Sets the silent mode start hour
+ * @param value   hour (0-23) to start Lazy mode, or -1 to disable
+ */
+void set_silent_hour(int value);
+
+/**
  *  Sets SSID value
  * @param value   SSID string
  */

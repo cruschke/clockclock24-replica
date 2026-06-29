@@ -10,6 +10,7 @@ int _clock_timezone;
 char _timezone_id[64];          // IANA timezone identifier (e.g., "Europe/Berlin")
 bool _timezone_configured;      // true if timezone_id has been explicitly set
 char _time_authority[32];       // "network_ntp" or "browser_manual_fallback"
+int _silent_hour;               // hour (0-23) at which Lazy mode starts; -1 = disabled
 
 int _wireless_mode;
 char _ssid[64];
@@ -21,6 +22,7 @@ void begin_config()
   _clock_mode = prefs.getInt("clock_mode", LAZY);
   _wireless_mode = prefs.getInt("wireless_mode", HOTSPOT);
   _clock_timezone = prefs.getInt("clock_timezone", 0);
+  _silent_hour = prefs.getInt("silent_hour", -1);
   
   // Load timezone identifier (IANA format)
   // On clean flash (no EEPROM), defaults to unconfigured state
@@ -58,6 +60,7 @@ void clear_config()
   _timezone_configured = false;
   strncpy(_time_authority, "browser_manual_fallback", sizeof(_time_authority));
   memset(_sleep_time, 0, sizeof(_sleep_time));
+  _silent_hour = -1;
 }
 
 int get_clock_mode()
@@ -165,4 +168,17 @@ void set_time_authority(const char *authority)
 {
   strncpy(_time_authority, authority, sizeof(_time_authority));
   prefs.putString("time_authority", authority);
+}
+
+int get_silent_hour()
+{
+  return _silent_hour;
+}
+
+void set_silent_hour(int value)
+{
+  if (value < -1 || value > 23)
+    value = -1;
+  _silent_hour = value;
+  prefs.putInt("silent_hour", value);
 }
