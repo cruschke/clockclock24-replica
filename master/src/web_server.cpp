@@ -20,6 +20,7 @@ void server_start()
   _server.on("/adjust", HTTP_POST, handle_post_adjust);
   _server.on("/mode", HTTP_POST, handle_post_mode);
   _server.on("/sleep", HTTP_POST, handle_post_sleep);
+  _server.on("/silent", HTTP_POST, handle_post_silent);
   _server.on("/connection", HTTP_POST, handle_post_connection);
   Serial.println("WebServer setup done");
 }
@@ -77,8 +78,9 @@ void handle_get_config()
         strncat(s_time,",", 2);
     }
     strncat(s_time, "]", 2);
-    snprintf(payload, sizeof(payload), 
+    snprintf(payload, sizeof(payload),
       "{\"clock_mode\":%d,"
+      "\"silent_hour\":%d,"
       "\"wireless_mode\":%d,"
       "\"ssid\":\"%s\","
       "\"password\":\"%s\","
@@ -87,6 +89,7 @@ void handle_get_config()
       "\"timezone_configured\":%s,"
       "\"time_authority\":\"%s\"}",
       get_clock_mode(),
+      get_silent_hour(),
       get_connection_mode(),
       get_ssid(),
       get_password(),
@@ -167,6 +170,17 @@ void handle_post_mode()
   Serial.println("Handle POST /mode");
   if (_server.hasArg("mode"))
     set_clock_mode(_server.arg("mode").toInt());
+  _server.send(200, "text/plain", "");
+}
+
+extern int last_minute;
+
+void handle_post_silent()
+{
+  Serial.println("Handle POST /silent");
+  if (_server.hasArg("silent_hour"))
+    set_silent_hour(_server.arg("silent_hour").toInt());
+  last_minute = -1; // force immediate re-evaluation in set_time()
   _server.send(200, "text/plain", "");
 }
 
